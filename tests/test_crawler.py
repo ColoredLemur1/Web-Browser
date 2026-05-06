@@ -24,7 +24,7 @@ LAST_PAGE_HTML = """
 
 
 def test_politeness_window_respected():
-    """time.sleep is called with the configured delay on every fetch."""
+    """Sleep uses configured delay before each fetch"""
     crawler = Crawler(delay=6)
     with patch("src.crawler.time.sleep") as mock_sleep, \
          patch("src.crawler.requests.get") as mock_get:
@@ -34,7 +34,7 @@ def test_politeness_window_respected():
 
 
 def test_skips_already_visited_urls():
-    """fetch() returns None without making a request for visited URLs."""
+    """Already visited url skips request"""
     crawler = Crawler(delay=0)
     with patch("src.crawler.requests.get") as mock_get:
         crawler.visited.add("https://quotes.toscrape.com/page/1/")
@@ -44,7 +44,7 @@ def test_skips_already_visited_urls():
 
 
 def test_handles_http_error_gracefully():
-    """fetch() returns None for non-200 responses without raising."""
+    """Non-200 status yields none, no raise"""
     crawler = Crawler(delay=0)
     with patch("src.crawler.requests.get") as mock_get:
         mock_get.return_value = make_response(404, "")
@@ -53,7 +53,7 @@ def test_handles_http_error_gracefully():
 
 
 def test_handles_network_exception_gracefully():
-    """fetch() returns None when requests.get raises a connection error."""
+    """Get raising yields none"""
     crawler = Crawler(delay=0)
     with patch("src.crawler.requests.get") as mock_get:
         mock_get.side_effect = Exception("connection refused")
@@ -62,7 +62,7 @@ def test_handles_network_exception_gracefully():
 
 
 def test_successful_fetch_returns_html():
-    """fetch() returns the response text on a 200 response."""
+    """200 response returns response text"""
     crawler = Crawler(delay=0)
     with patch("src.crawler.requests.get") as mock_get:
         mock_get.return_value = make_response(200, "<html>hello</html>")
@@ -71,7 +71,7 @@ def test_successful_fetch_returns_html():
 
 
 def test_crawl_follows_pagination_links():
-    """crawl() follows /page/N/ links and returns all fetched pages."""
+    """Crawl walks next link until none"""
     crawler = Crawler(delay=0)
     responses = [
         make_response(200, PAGINATED_HTML),
@@ -85,9 +85,9 @@ def test_crawl_follows_pagination_links():
 
 
 def test_crawl_does_not_visit_same_url_twice():
-    """crawl() visits each URL exactly once even if it appears in multiple pages."""
+    """Each url at most one fetch even if linked twice"""
     crawler = Crawler(delay=0)
-    # Both pages link back to /page/2/ — should only fetch it once
+    # second page still points at page 2, only one GET for that url
     html_with_self_link = """
     <html><body>
       <li class="next"><a href="/page/2/">Next</a></li>

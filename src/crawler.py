@@ -10,7 +10,7 @@ class Crawler:
         self.visited = set()
 
     def fetch(self, url):
-        """Fetch a single URL. Returns HTML string on success, None otherwise."""
+        """Fetch a single URL, returns HTML string on success"""
         if url in self.visited:
             return None
 
@@ -26,10 +26,7 @@ class Crawler:
             return None
 
     def crawl(self, start_url):
-        """Crawl all pages reachable via pagination from start_url.
-
-        Returns dict mapping {url: html_text}.
-        """
+        """Crawl all pages reachable via pagination from start_url this returns a dictionary mapping {url: html_text}"""
         pages = {}
         url = start_url
 
@@ -43,7 +40,7 @@ class Crawler:
         return pages
 
     def _next_page_url(self, html, base_url):
-        """Extract the next pagination URL from an HTML page, or None."""
+        """Extract the next pagination URL from an HTML page"""
         soup = BeautifulSoup(html, "html.parser")
         next_li = soup.find("li", class_="next")
         if next_li:

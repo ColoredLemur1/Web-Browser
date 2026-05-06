@@ -1,7 +1,7 @@
 import os
-from src.crawler import Crawler
-from src.indexer import Indexer
-from src.search import Search
+from crawler import Crawler
+from indexer import Indexer
+from search import Search
 
 INDEX_PATH = "data/index.json"
 START_URL = "https://quotes.toscrape.com/"
@@ -28,8 +28,8 @@ def run():
         argument = parts[1] if len(parts) > 1 else ""
 
         if command == "build":
-            print(f"Crawling {START_URL} ...")
-            crawler = Crawler(delay=6)
+            print(f"Crawling {START_URL} ... (be aware of delay per page)")
+            crawler = Crawler(delay=6, verbose=True)
             pages = crawler.crawl(START_URL)
             print(f"Crawled {len(pages)} pages. Building index...")
             indexer.build(pages)

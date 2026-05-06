@@ -160,3 +160,26 @@ def test_crawl_does_not_visit_same_url_twice():
 
     assert call_counts.get("https://example.com/", 0) == 1
     assert call_counts.get("https://example.com/b/", 0) == 1
+
+
+def test_crawl_skips_pages_that_fail_to_fetch():
+    """Pages linked but returning non-200 are omitted from results without stopping the crawl"""
+    html_with_bad_link = """
+    <html><body>
+      <a href="/good/">Good</a>
+      <a href="/bad/">Bad</a>
+    </body></html>
+    """
+    crawler = Crawler(delay=0)
+    responses = {
+        "https://example.com/": make_response(200, html_with_bad_link),
+        "https://example.com/good/": make_response(200, LEAF_HTML),
+        "https://example.com/bad/": make_response(404, ""),
+    }
+    with patch(
+        "src.crawler.requests.get",
+        side_effect=lambda url, **kw: responses.get(url, make_response(404, "")),
+    ):
+        pages = crawler.crawl("https://example.com/")
+    assert "https://example.com/good/" in pages
+    assert "https://example.com/bad/" not in pages

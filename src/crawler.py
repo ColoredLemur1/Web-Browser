@@ -7,8 +7,9 @@ from collections import deque
 
 
 class Crawler:
-    def __init__(self, delay=6):
+    def __init__(self, delay=6, verbose=False):
         self.delay = delay
+        self.verbose = verbose
         self.visited = set()
         self._robot_parsers = {}
 
@@ -43,6 +44,8 @@ class Crawler:
             if html is None:
                 continue
             pages[url] = html
+            if self.verbose:
+                print(f"  [{len(pages)}] {url}")
             for link in self._extract_links(html, url):
                 if urlparse(link).netloc == base_netloc and link not in enqueued:
                     enqueued.add(link)

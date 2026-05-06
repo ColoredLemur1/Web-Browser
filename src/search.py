@@ -1,10 +1,15 @@
+from nltk.stem import PorterStemmer
+
+_stemmer = PorterStemmer()
+
+
 class Search:
     def __init__(self, index):
         self.index = index
 
     def find_pages(self, query):
-        """Urls whose postings include every query token, lowercased"""
-        terms = [t.lower() for t in query.split() if t.strip()]
+        """Urls with every query token, rank by summed term frequency"""
+        terms = [_stemmer.stem(t.lower()) for t in query.split() if t.strip()]
         if not terms:
             return []
 
@@ -12,8 +17,15 @@ class Search:
         for term in terms[1:]:
             result &= set(self.index.get(term, {}).keys())
 
-        return list(result)
+        def score(url):
+            return sum(
+                self.index[term][url]["frequency"]
+                for term in terms
+                if url in self.index.get(term, {})
+            )
+
+        return sorted(result, key=score, reverse=True)
 
     def print_word(self, word):
-        """Postings for lowercased word or none if absent"""
-        return self.index.get(word.lower())
+        """Postings for stemmed lowercased word, none if absent"""
+        return self.index.get(_stemmer.stem(word.lower()))

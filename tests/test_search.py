@@ -5,10 +5,10 @@ SAMPLE_INDEX = {
         "https://example.com/p1": {"frequency": 2, "positions": [0, 4]},
         "https://example.com/p2": {"frequency": 1, "positions": [3]},
     },
-    "friends": {
+    "friend": {
         "https://example.com/p2": {"frequency": 1, "positions": [7]},
     },
-    "indifference": {
+    "rare": {
         "https://example.com/p3": {"frequency": 1, "positions": [2]},
     },
 }
@@ -56,15 +56,14 @@ def test_find_is_case_insensitive():
 def test_find_multi_word_no_shared_pages_returns_empty():
     """Disjoint term footprints, intersection empty"""
     s = Search(SAMPLE_INDEX)
-    # good on p1 and p2, indifference on p3 only, no shared url
-    assert s.find_pages("good indifference") == []
+    assert s.find_pages("good rare") == []
 
 
 def test_print_word_returns_index_entry():
     """Known word returns same postings map as index slice"""
     s = Search(SAMPLE_INDEX)
-    entry = s.print_word("good")
-    assert entry == SAMPLE_INDEX["good"]
+    entry = s.print_word("friends")
+    assert entry == SAMPLE_INDEX["friend"]
 
 
 def test_print_word_is_case_insensitive():
@@ -77,3 +76,23 @@ def test_print_word_not_found_returns_none():
     """Unknown word yields none"""
     s = Search(SAMPLE_INDEX)
     assert s.print_word("notaword") is None
+
+
+def test_find_returns_results_in_descending_score_order():
+    """Pages ordered by summed query term frequency, highest first"""
+    s = Search(SAMPLE_INDEX)
+    results = s.find_pages("good")
+    assert results[0] == "https://example.com/p1"
+    assert results[1] == "https://example.com/p2"
+
+
+def test_find_stems_query_terms():
+    """Inflected query form matches documents under same stem"""
+    from nltk.stem import PorterStemmer
+    stem = PorterStemmer().stem("swim")
+    index_with_stem = {
+        stem: {"https://example.com/p1": {"frequency": 1, "positions": [0]}},
+    }
+    s = Search(index_with_stem)
+    results = s.find_pages("swimming")
+    assert "https://example.com/p1" in results

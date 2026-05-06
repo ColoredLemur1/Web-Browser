@@ -44,7 +44,7 @@ def test_skips_already_visited_urls():
 
 
 def test_handles_http_error_gracefully():
-    """Non-200 status yields none, no raise"""
+    """Non 200 status yields none, no raise"""
     crawler = Crawler(delay=0)
     with patch("src.crawler.requests.get") as mock_get:
         mock_get.return_value = make_response(404, "")
@@ -70,33 +70,93 @@ def test_successful_fetch_returns_html():
         assert result == "<html>hello</html>"
 
 
-def test_crawl_follows_pagination_links():
-    """Crawl walks next link until none"""
+MULTI_LINK_HTML = """
+<html><body>
+  <a href="/page/about/">About</a>
+  <a href="/page/contact/">Contact</a>
+</body></html>
+"""
+
+LEAF_HTML = """<html><body><p>No outbound links here.</p></body></html>"""
+
+
+def test_crawl_follows_all_same_domain_links():
+    """Bfs finds every same domain page from start url"""
     crawler = Crawler(delay=0)
-    responses = [
-        make_response(200, PAGINATED_HTML),
-        make_response(200, LAST_PAGE_HTML),
-    ]
-    with patch("src.crawler.requests.get", side_effect=responses):
-        pages = crawler.crawl("https://quotes.toscrape.com/")
-    assert len(pages) == 2
-    assert "https://quotes.toscrape.com/" in pages
-    assert "https://quotes.toscrape.com/page/2/" in pages
+    responses = {
+        "https://example.com/": make_response(200, MULTI_LINK_HTML),
+        "https://example.com/page/about/": make_response(200, LEAF_HTML),
+        "https://example.com/page/contact/": make_response(200, LEAF_HTML),
+    }
+    with patch(
+        "src.crawler.requests.get",
+        side_effect=lambda url, **kw: responses.get(url, make_response(404, "")),
+    ):
+        pages = crawler.crawl("https://example.com/")
+    assert "https://example.com/" in pages
+    assert "https://example.com/page/about/" in pages
+    assert "https://example.com/page/contact/" in pages
+
+
+def test_crawl_does_not_follow_external_links():
+    """Bfs stays on seed domain, ignore external hrefs"""
+    external_html = """
+    <html><body>
+      <a href="https://external.com/other/">External</a>
+      <a href="/internal/">Internal</a>
+    </body></html>
+    """
+    crawler = Crawler(delay=0)
+    responses = {
+        "https://example.com/": make_response(200, external_html),
+        "https://example.com/internal/": make_response(200, LEAF_HTML),
+    }
+    with patch(
+        "src.crawler.requests.get",
+        side_effect=lambda url, **kw: responses.get(url, make_response(404, "")),
+    ):
+        pages = crawler.crawl("https://example.com/")
+    assert "https://external.com/other/" not in pages
+    assert "https://example.com/internal/" in pages
+
+
+def test_fetch_skips_disallowed_url():
+    """Urls blocked by robots txt are not fetched"""
+    crawler = Crawler(delay=0)
+    with patch.object(crawler, "_can_fetch", return_value=False), \
+         patch("src.crawler.requests.get") as mock_get:
+        result = crawler.fetch("https://example.com/private/")
+        assert result is None
+        mock_get.assert_not_called()
+
+
+def test_fetch_proceeds_when_robots_allows():
+    """Urls allowed by robots txt fetch normally"""
+    crawler = Crawler(delay=0)
+    with patch.object(crawler, "_can_fetch", return_value=True), \
+         patch("src.crawler.requests.get") as mock_get:
+        mock_get.return_value = make_response(200, "<html>ok</html>")
+        result = crawler.fetch("https://example.com/public/")
+        assert result == "<html>ok</html>"
 
 
 def test_crawl_does_not_visit_same_url_twice():
-    """Each url at most one fetch even if linked twice"""
+    """Each URL is fetched at most once even if multiple pages link to it"""
+    html_a = "<html><body><a href='/b/'>B</a></body></html>"
+    html_b = "<html><body><a href='/'>Home</a></body></html>"
+    call_counts = {}
+
+    def side_effect(url, **kw):
+        call_counts[url] = call_counts.get(url, 0) + 1
+        if url == "https://example.com/":
+            return make_response(200, html_a)
+        if url == "https://example.com/b/":
+            return make_response(200, html_b)
+        return make_response(404, "")
+
     crawler = Crawler(delay=0)
-    # second page still points at page 2, only one GET for that url
-    html_with_self_link = """
-    <html><body>
-      <li class="next"><a href="/page/2/">Next</a></li>
-    </body></html>
-    """
-    responses = [
-        make_response(200, html_with_self_link),
-        make_response(200, LAST_PAGE_HTML),
-    ]
-    with patch("src.crawler.requests.get", side_effect=responses) as mock_get:
-        crawler.crawl("https://quotes.toscrape.com/")
-    assert mock_get.call_count == 2
+    with patch("src.crawler.requests.get", side_effect=side_effect):
+        crawler.crawl("https://example.com/")
+
+    assert call_counts.get("https://example.com/", 0) == 1
+    assert call_counts.get("https://example.com/b/", 0) == 1
